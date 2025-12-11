@@ -1,6 +1,6 @@
 # 🌍 EnvironNet - Trash Classification AI
 
-EnvironNet is a deep learning-powered application that classifies everyday waste into **10 categories** using a MobileNetV2-based convolutional neural network with accuracy of **92.63%**. It aims to make waste management faster, smarter, and more environmentally friendly.
+EnvironNet is a deep learning-powered application that classifies everyday waste into **10 categories** using a MobileNetV2-based convolutional neural network with accuracy of **92.63%**. It aims to make waste management faster, smarter, and more environmentally friendly.🌏
 <img width="1920" height="1080" alt="IMG_2208" src="https://github.com/user-attachments/assets/1540d80e-fc14-43dd-9c3f-e4b1a7132ef7" />
 
 ---
