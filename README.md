@@ -75,6 +75,26 @@ streamlit run full.py
 >   ```
 
 ---
+Here’s how you can update your README to include the new **FastAPI backend** (`backend.py`) that only returns the highest predicted class and instructions for testing it:
+
+---
+
+## 🔹 Backend API (`backend.py`)
+
+A FastAPI backend has been added for **ESP32-CAM / IoT integration**. It runs  `EnvironNet` model and **returns only the top predicted class** with confidence.
+
+### 1️⃣ Run the backend
+
+From your project folder:
+
+```bash
+# Make sure your virtual environment is active
+pip install -r requirements.txt  
+# Run FastAPI backend
+uvicorn backend:app --host 0.0.0.0 --port 8000
+```
+
+### 3️⃣ How to use it
 
 ## 🚀 Usage
 
