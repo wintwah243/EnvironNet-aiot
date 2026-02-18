@@ -13,6 +13,13 @@ import numpy as np
 DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
+
+# --- NEW FILTER CONFIG ---
+TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
+
+
+# -------------------------
+
 @st.cache_resource
 def load_model_and_classes():
     checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
@@ -23,6 +30,7 @@ def load_model_and_classes():
     model.to(DEVICE).eval()
     class_names = list(checkpoint["class_to_idx"].keys())
     return model, class_names
+
 
 model, class_names = load_model_and_classes()
 
@@ -35,22 +43,43 @@ base_transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
-# prediction
+# --- Define your visible classes here ---
+TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
+
+
 def classify_image(image: Image.Image, top_k=3):
     """
-    Takes a PIL image and returns top_k class labels with probabilities.
+    Filters the 10-class output down to only the 4 target classes.
     """
     model.eval()
     img_t = base_transform(image).unsqueeze(0).to(DEVICE)
     with torch.no_grad():
         outputs = model(img_t)
-        # output proba
+        # Get raw probabilities for all 10 classes
         probs = F.softmax(outputs, dim=1)[0].cpu().numpy()
-        # top k 
-        topk_idx = probs.argsort()[-top_k:][::-1]
-        topk_labels = [class_names[i] for i in topk_idx]
-        topk_probs = probs[topk_idx]
-    return list(zip(topk_labels, topk_probs))
+
+        # Filter: Only keep indices that match our 4 target names
+        filtered_results = []
+        for i, name in enumerate(class_names):
+            if name.lower() in [c.lower() for c in TARGET_CLASSES]:
+                filtered_results.append((name, probs[i]))
+
+        # Re-normalize: Make the 4 classes sum to 100% (professional look)
+        names, scores = zip(*filtered_results)
+        scores = np.array(scores)
+        total_sum = scores.sum()
+
+        if total_sum > 0:
+            scores = scores / total_sum  # Distribute probability among the 4
+
+        # Sort and return
+        final_results = sorted(zip(names, scores), key=lambda x: x[1], reverse=True)
+
+    return final_results[:top_k]
+
+
+print([c for c in class_names if c.lower() in TARGET_CLASSES])
+
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
@@ -58,86 +87,46 @@ page = st.sidebar.selectbox("Choose a page", ["Home", "Upload Photo", "Take Phot
 
 # Home
 if page == "Home":
-    # Project Title
     st.title("🌍 EnvironNet")
     st.subheader("Trash Classification AI")
     st.write(
-         "EnvironNet is a deep learning model designed to classify everyday waste into **10 categories**: "
-        "**Battery, Plastic, Shoe, Cardboard, Clothes, Metal, Organic, Glass, Paper, and Trash.**"
+        f"EnvironNet is a deep learning model optimized to classify waste into **{len(TARGET_CLASSES)} categories**: "
+        f"**{', '.join(TARGET_CLASSES).title()}.**"
     )
 
-
     st.markdown("---")
+    # st.image("demo/environNet.jpg", width="stretch") # Commented out if file missing
 
-    st.image("demo/environNet.jpg", width="stretch")
-
-    
     st.header("💡 How EnvironNet Helps")
     st.write(
-        "Our AI model uses deep convolutional neural networks (CNNs) to analyze waste images and "
-        "classify them automatically. This saves time, reduces human error, and ensures that waste "
-        "is sorted properly. By supporting recycling efforts, EnvironNet contributes to a cleaner environment "
-        "and builds the foundation for smarter waste management systems."
+        "Our AI model uses deep convolutional neural networks (CNNs) to analyze waste images. "
+        "By focusing on specific recyclables like plastic and metal, we help streamline the sorting process."
     )
 
     st.markdown("---")
-
-    # Goals
     st.header("🎯 Our Goals")
     goal_cols = st.columns(3)
     with goal_cols[0]:
-        st.success("**Time-Saving**\n\nMake the trash classification process faster and more efficient by integrating AI.")
+        st.success("**Efficiency**\n\nFaster classification through AI integration.")
     with goal_cols[1]:
-        st.success("**Real-World Impact**\n\nUse AI to create meaningful impact for the environment with recycling practices.\n\n")
+        st.success("**Impact**\n\nSupporting cleaner recycling streams.")
     with goal_cols[2]:
-        st.success("**Awareness**\n\nEncourage people to identify and sort waste responsibly and systematically..\n\n")
+        st.success("**Awareness**\n\nHelping users identify household recyclables.")
 
-    st.markdown("---")
-
-    # Future Plans
-    st.header("🚀 Future Plans")
-    future_cols = st.columns(2)
-    with future_cols[0]:
-        st.info("**IoT Integration**\n\nConnect EnvironNet with IoT-enabled bins to make sorting more effective and scalable.")
-    with future_cols[1]:
-        st.info("**Advanced Features**\n\nExpand classification to include categories like recyclable and non-recyclable waste.")
-
-    st.markdown("---")
-
-    # Options explanation
-    st.header("🔍 How to Use")
-    st.write(
-        "You can classify waste in three different ways (available in the navigation sidebar):\n"
-        "- **Upload Photo** – Upload an image from your device.\n"
-        "- **Take Photo** – Capture a new photo directly with your camera.\n"
-        "- **Live Webcam** – Get real-time classification with labels."
-    )
-
-    st.markdown("---")
     # Footer
-    st.markdown(
-        "<div style='text-align:center; color:gray; padding:10px;'>"
-        "EnvironNet © 2025"
-        "</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown("---")
+    st.markdown("<div style='text-align:center; color:gray;'>EnvironNet © 2025</div>", unsafe_allow_html=True)
+
 # upload section
 elif page == "Upload Photo":
-    st.header(" 📤 Easily classify your everyday waste with EnvironNet!")
-    
-
-    image = None
-
-    # Upload from device
+    st.header(" 📤 Upload Image")
     file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
     if file:
         image = Image.open(file).convert("RGB")
+        st.image(image, caption="Selected Image", use_container_width=True)
 
-    if image is not None:
-        st.image(image, caption="Selected Image", width="stretch")
-        # Automatic scanning animation
         placeholder = st.empty()
-        for i in range(5):
+        for i in range(3):
             placeholder.info(f"🔄 Scanning... {'.' * (i % 3 + 1)}")
             time.sleep(0.4)
         placeholder.empty()
@@ -145,28 +134,19 @@ elif page == "Upload Photo":
         results = classify_image(image, top_k=3)
         if results:
             top_label, top_prob = results[0]
-            st.success(f"✅ Predicted: **{top_label}** ({top_prob*100:.2f}%)")
-        
-        for label, prob in results[1:3]:
-            st.write(f"**{label}**: {prob*100:.2f}%")
-
-        if st.button("❌ Cancel"):
-            st.warning("Cancelled. Please upload or choose another image.")
-            image = None
-            results= None
-
-    
+            st.success(f"✅ Predicted: **{top_label}** ({top_prob * 100:.2f}%)")
+            for label, prob in results[1:]:
+                st.write(f"**{label}**: {prob * 100:.2f}%")
 
 elif page == "Take Photo":
-    st.header("📸 Snap your waste and let EnvironNet do the rest!")
-    
-    img_file = st.camera_input("Take a picture")  # opens phone camera
-
+    st.header("📸 Take Photo")
+    img_file = st.camera_input("Take a picture")
     if img_file:
         image = Image.open(img_file).convert("RGB")
-        st.image(image, caption="Captured Photo",width="stretch")
+        st.image(image, caption="Captured Photo", use_container_width=True)
+
         placeholder = st.empty()
-        for i in range(5):
+        for i in range(3):
             placeholder.info(f"🔄 Scanning... {'.' * (i % 3 + 1)}")
             time.sleep(0.4)
         placeholder.empty()
@@ -174,10 +154,6 @@ elif page == "Take Photo":
         results = classify_image(image, top_k=3)
         if results:
             top_label, top_prob = results[0]
-            st.success(f"✅ Predicted: **{top_label}** ({top_prob*100:.2f}%)")
-        
-        for label, prob in results[1:3]:
-            st.write(f"**{label}**: {prob*100:.2f}%")
-
-        if st.button("❌ Cancel"):
-            st.warning("Cancelled. Please take another photo.")
+            st.success(f"✅ Predicted: **{top_label}** ({top_prob * 100:.2f}%)")
+            for label, prob in results[1:]:
+                st.write(f"**{label}**: {prob * 100:.2f}%")
