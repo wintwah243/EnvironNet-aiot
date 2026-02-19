@@ -1,8 +1,9 @@
 streamlit
-torch
-torchvision
+torch --index-url https://download.pytorch.org/whl/cpu
+torchvision --index-url https://download.pytorch.org/whl/cpu
 pillow
 numpy
 uvicorn
 fastapi
+python-multipart
 opencv-python-headless
