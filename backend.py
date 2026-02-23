@@ -16,7 +16,7 @@ DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
 TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
-ESP32_IP = "172.20.10.5"  # esp32 ip address
+ESP32_IP = "172.19.139.72"  # esp32 ip address
 
 
 # AI MODEL LOAD
