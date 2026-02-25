@@ -1,34 +1,37 @@
 import cv2
-import requests
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
 from PIL import Image
-import io
 
-
-# this is for esp 32 camera
-
-# configuration
+# ---------------- CONFIGURATION ----------------
 DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
 TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
-ESP32_IP = "172.19.139.72"  # esp32 ip address
+
+# မင်းရဲ့ Arduino Serial Monitor မှာပြတဲ့ IP ကို ဒီမှာထည့်ပါ
+ESP32_IP = "172.16.61.142"
+STREAM_URL = f"http://{ESP32_IP}/"
 
 
-# AI MODEL LOAD
+# --- AI MODEL LOAD ---
 def load_model():
-    checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
-    model = models.mobilenet_v2(weights=None)
-    in_features = model.classifier[1].in_features
-    model.classifier[1] = nn.Linear(in_features, checkpoint["config"]["num_classes"])
-    model.load_state_dict(checkpoint["model_state"])
-    model.to(DEVICE).eval()
-    class_names = list(checkpoint["class_to_idx"].keys())
-    return model, class_names
+    try:
+        checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
+        model = models.mobilenet_v2(weights=None)
+        in_features = model.classifier[1].in_features
+        model.classifier[1] = nn.Linear(in_features, checkpoint["config"]["num_classes"])
+        model.load_state_dict(checkpoint["model_state"])
+        model.to(DEVICE).eval()
+        class_names = list(checkpoint["class_to_idx"].keys())
+        print("Model loaded successfully!")
+        return model, class_names
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        exit()
 
 
 model, class_names = load_model()
@@ -57,40 +60,45 @@ def classify_frame(cv2_frame):
 
     names, scores = zip(*filtered)
     scores = np.array(scores)
-    scores = scores / scores.sum()
+    if scores.sum() > 0:
+        scores = scores / scores.sum()
+
     top_idx = np.argmax(scores)
     return names[top_idx], scores[top_idx]
 
 
-# STREAMING LOOP
+# --- STREAMING LOOP ---
 def start_stream():
-    url = f"http://{ESP32_IP}/"
-    print(f"Starting Stream from {url}...")
+    print(f"Connecting to ESP32 Stream: {STREAM_URL}")
+
+    # OpenCV ကနေ ESP32 ရဲ့ Stream URL ကို တိုက်ရိုက်ချိတ်တာပါ
+    cap = cv2.VideoCapture(STREAM_URL)
+
+    if not cap.isOpened():
+        print("Error: Could not open video stream. Check IP or WiFi.")
+        return
 
     while True:
-        try:
-            img_resp = requests.get(url, timeout=2)
-            img_arr = np.array(bytearray(img_resp.content), dtype=np.uint8)
-            frame = cv2.imdecode(img_arr, -1)
-
-            if frame is not None:
-
-                label, confidence = classify_frame(frame)
-
-
-                text = f"{label}: {confidence * 100:.1f}%"
-                cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
-                            1, (0, 255, 0), 2, cv2.LINE_AA)
-
-
-                cv2.imshow('EnvironNet Real-time Monitor', frame)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        except Exception as e:
-            print(f"Error: {e}")
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to receive frame (stream end?). Retrying...")
             continue
 
+        # AI Prediction လုပ်မယ်
+        label, confidence = classify_frame(frame)
+
+        # Result ကို ပုံပေါ်မှာ စာသားရေးမယ်
+        text = f"{label}: {confidence * 100:.1f}%"
+        cv2.putText(frame, text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        # Monitor ပြမယ်
+        cv2.imshow('EnvironNet ESP32-CAM Monitor', frame)
+
+        # 'q' နှိပ်ရင် ပိတ်မယ်
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
     cv2.destroyAllWindows()
 
 
