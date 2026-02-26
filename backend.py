@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torchvision import models, transforms
 from PIL import Image
 
-# ---------------- CONFIGURATION ----------------
+# CONFIGURATION
 DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
@@ -69,36 +69,37 @@ def classify_frame(cv2_frame):
 
 # --- STREAMING LOOP ---
 def start_stream():
-    print(f"Connecting to ESP32 Stream: {STREAM_URL}")
+    stream = requests.get(f"http://{ESP32_IP}/", stream=True)
+    bytes_data = bytes()
 
-    # OpenCV ကနေ ESP32 ရဲ့ Stream URL ကို တိုက်ရိုက်ချိတ်တာပါ
-    cap = cv2.VideoCapture(STREAM_URL)
+    for chunk in stream.iter_content(chunk_size=1024):
+        bytes_data += chunk
+        a = bytes_data.find(b'\xff\xd8')
+        b = bytes_data.find(b'\xff\xd9')
 
-    if not cap.isOpened():
-        print("Error: Could not open video stream. Check IP or WiFi.")
-        return
+        if a != -1 and b != -1:
+            jpg = bytes_data[a:b + 2]
+            bytes_data = bytes_data[b + 2:]
+            frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Failed to receive frame (stream end?). Retrying...")
-            continue
+            if frame is not None:
+                label, confidence = classify_frame(frame)
 
-        # AI Prediction လုပ်မယ်
-        label, confidence = classify_frame(frame)
+                if label.lower() == "plastic" and confidence > 0.9:
+                    print("Plastic detected! Rotating motor...")
+                    try:
+                        requests.get(ROTATE_URL, timeout=1)
+                    except:
+                        print("Failed to send command to ESP32")
 
-        # Result ကို ပုံပေါ်မှာ စာသားရေးမယ်
-        text = f"{label}: {confidence * 100:.1f}%"
-        cv2.putText(frame, text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                # Display
+                cv2.putText(frame, f"{label}: {confidence * 100:.1f}%", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                cv2.imshow('Detection', frame)
 
-        # Monitor ပြမယ်
-        cv2.imshow('EnvironNet ESP32-CAM Monitor', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-        # 'q' နှိပ်ရင် ပိတ်မယ်
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
     cv2.destroyAllWindows()
 
 
