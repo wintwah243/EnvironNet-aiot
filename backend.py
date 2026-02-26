@@ -12,9 +12,9 @@ CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
 TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
 
-# မင်းရဲ့ Arduino Serial Monitor မှာပြတဲ့ IP ကို ဒီမှာထည့်ပါ
 ESP32_IP = "172.16.61.142"
-STREAM_URL = f"http://{ESP32_IP}/"
+STREAM_URL = f"http://{ESP32_IP}:81/stream"
+ROTATE_URL = f"http://{ESP32_IP}/rotate"
 
 
 # --- AI MODEL LOAD ---
