@@ -8,17 +8,12 @@ from torchvision import models, transforms
 from PIL import Image
 import io
 
-
-# this is for web camera/ph camera
-
-# configuration
+# CONFIG
 DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
 TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
-ESP32_IP = "172.16.61.143"  # esp32 ip address
-STREAM_URL = f"http://{ESP32_IP}:81/stream"
-ROTATE_URL = f"http://{ESP32_IP}/rotate"
+ESP32_IP = "172.16.61.142"  # ESP32 IP address
 
 
 # AI MODEL LOAD
@@ -66,39 +61,25 @@ def classify_frame(cv2_frame):
 
 # STREAMING LOOP
 def start_stream():
-    stream = requests.get(f"http://{ESP32_IP}/", stream=True)
-    bytes_data = bytes()
+    cap = cv2.VideoCapture(0)
 
-    for chunk in stream.iter_content(chunk_size=1024):
-        bytes_data += chunk
-        a = bytes_data.find(b'\xff\xd8')
-        b = bytes_data.find(b'\xff\xd9')
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-        if a != -1 and b != -1:
-            jpg = bytes_data[a:b + 2]
-            bytes_data = bytes_data[b + 2:]
-            frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+        label, confidence = classify_frame(frame)
 
-            if frame is not None:
-                label, confidence = classify_frame(frame)
+        text = f"{label}: {confidence * 100:.1f}%"
+        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-                if label.lower() == "plastic" and confidence > 0.9:
-                    print("Plastic detected! Rotating motor...")
-                    try:
-                        requests.get(ROTATE_URL, timeout=1)
-                    except:
-                        print("Failed to send command to ESP32")
+        cv2.imshow('EnvironNet WebCam Monitor', frame)
 
-                # Display
-                cv2.putText(frame, f"{label}: {confidence * 100:.1f}%", (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                cv2.imshow('Detection', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
+    cap.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     start_stream()
