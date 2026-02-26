@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
 from PIL import Image
+import requests
 
 # CONFIGURATION
 DEVICE = "cpu"
@@ -17,7 +18,7 @@ STREAM_URL = f"http://{ESP32_IP}:81/stream"
 ROTATE_URL = f"http://{ESP32_IP}/rotate"
 
 
-# --- AI MODEL LOAD ---
+# AI MODEL LOAD
 def load_model():
     try:
         checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
@@ -36,7 +37,7 @@ def load_model():
 
 model, class_names = load_model()
 
-# --- TRANSFORM ---
+# TRANSFORM
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.Lambda(lambda img: img.convert("RGB")),
@@ -67,7 +68,7 @@ def classify_frame(cv2_frame):
     return names[top_idx], scores[top_idx]
 
 
-# --- STREAMING LOOP ---
+# STREAMING LOOP
 def start_stream():
     stream = requests.get(f"http://{ESP32_IP}/", stream=True)
     bytes_data = bytes()
