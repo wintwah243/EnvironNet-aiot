@@ -16,7 +16,9 @@ DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
 TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
-ESP32_IP = "172.16.61.142"  # esp32 ip address
+ESP32_IP = "172.16.61.143"  # esp32 ip address
+STREAM_URL = f"http://{ESP32_IP}:81/stream"
+ROTATE_URL = f"http://{ESP32_IP}/rotate"
 
 
 # AI MODEL LOAD
@@ -64,24 +66,37 @@ def classify_frame(cv2_frame):
 
 # STREAMING LOOP
 def start_stream():
-    cap = cv2.VideoCapture(0)
+    stream = requests.get(f"http://{ESP32_IP}/", stream=True)
+    bytes_data = bytes()
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    for chunk in stream.iter_content(chunk_size=1024):
+        bytes_data += chunk
+        a = bytes_data.find(b'\xff\xd8')
+        b = bytes_data.find(b'\xff\xd9')
 
-        label, confidence = classify_frame(frame)
+        if a != -1 and b != -1:
+            jpg = bytes_data[a:b + 2]
+            bytes_data = bytes_data[b + 2:]
+            frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
 
-        text = f"{label}: {confidence * 100:.1f}%"
-        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            if frame is not None:
+                label, confidence = classify_frame(frame)
 
-        cv2.imshow('EnvironNet WebCam Monitor', frame)
+                if label.lower() == "plastic" and confidence > 0.9:
+                    print("Plastic detected! Rotating motor...")
+                    try:
+                        requests.get(ROTATE_URL, timeout=1)
+                    except:
+                        print("Failed to send command to ESP32")
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+                # Display
+                cv2.putText(frame, f"{label}: {confidence * 100:.1f}%", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                cv2.imshow('Detection', frame)
 
-    cap.release()
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
     cv2.destroyAllWindows()
 
 
