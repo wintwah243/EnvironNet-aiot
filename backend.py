@@ -1,22 +1,25 @@
 import cv2
-import requests
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
 from PIL import Image
-import io
+import numpy as np
+import requests
+import time
 
 # CONFIG
 DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
 TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
+
+# ESP32 Configuration
 ESP32_IP = "172.16.61.142"  # ESP32 IP address
+ROTATE_URL = f"http://{ESP32_IP}/rotate"
 
 
-# AI MODEL LOAD
+# MODEL LOAD
 def load_model():
     checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
     model = models.mobilenet_v2(weights=None)
@@ -39,7 +42,7 @@ transform = transforms.Compose([
 ])
 
 
-def classify_frame(cv2_frame):
+def classify_image(cv2_frame):
     image = Image.fromarray(cv2.cvtColor(cv2_frame, cv2.COLOR_BGR2RGB))
     img_t = transform(image).unsqueeze(0).to(DEVICE)
 
@@ -59,27 +62,50 @@ def classify_frame(cv2_frame):
     return names[top_idx], scores[top_idx]
 
 
-# STREAMING LOOP
-def start_stream():
+# MAIN LOOP
+def start_capture_mode():
     cap = cv2.VideoCapture(0)
+
+    print("--- Capture Mode Started ---")
+    print("Press 's' to Capture and Analyze")
+    print("Press 'q' to Quit")
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        label, confidence = classify_frame(frame)
+        # Preview Window
+        cv2.imshow('Capture Mode - Press S to Scan', frame)
 
-        text = f"{label}: {confidence * 100:.1f}%"
-        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        key = cv2.waitKey(1) & 0xFF
 
-        cv2.imshow('EnvironNet WebCam Monitor', frame)
+        if key == ord('s'):
+            print("\nCapturing...")
+            label, confidence = classify_image(frame)
+            result_text = f"Result: {label} ({confidence * 100:.1f}%)"
+            print(result_text)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+            if label.lower() == "plastic" and confidence > 0.7:
+                print(">>> Sending Signal to ESP32...")
+                try:
+                    requests.get(ROTATE_URL, timeout=1)
+                    print(">>> Signal Sent Successfully!")
+                except:
+                    print(">>> Error: Could not reach ESP32")
+
+            result_frame = frame.copy()
+            cv2.putText(result_frame, result_text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
+            cv2.imshow('Analysis Result', result_frame)
+            cv2.waitKey(2000)  # 2 sec for result showing
+            cv2.destroyWindow('Analysis Result')
+
+        elif key == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
-    start_stream()
+    start_capture_mode()
