@@ -9,16 +9,16 @@ import numpy as np
 import time
 
 # Configuration
-ARDUINO_PORT = "/dev/cu.usbmodemFX2348N1"  # arduino port
+ARDUINO_PORT = "/dev/cu.usbmodemFX2348N1"
 arduino = serial.Serial(port=ARDUINO_PORT, baudrate=9600, timeout=.1)
 
 DEVICE = "cpu"
 CKPT_PATH = "environ_net.pt"
 IMG_SIZE = 224
-TARGET_CLASSES = ["plastic", "paper", "metal", "clothes"]
 
+VALID_CLASSES = ["plastic", "paper", "metal"]
 
-# AI model Load
+# ---------------- AI model Load ----------------
 def load_model():
     checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
     model = models.mobilenet_v2(weights=None)
@@ -28,18 +28,18 @@ def load_model():
     model.to(DEVICE).eval()
     return model, list(checkpoint["class_to_idx"].keys())
 
-
 model, class_names = load_model()
+
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-
+# ---------------- Main System ----------------
 def start_system():
-    cap = cv2.VideoCapture(0)  # USB Phone Webcam
-    print("System Started. Press 's' to Scan.")
+    cap = cv2.VideoCapture(0)
+    print("System Started. Press 's' to Scan. Press 'q' to Quit.")
 
     while True:
         ret, frame = cap.read()
@@ -48,32 +48,59 @@ def start_system():
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('s'):
+            print("\nScanning Object...")
             # AI Inference
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             img_t = transform(image).unsqueeze(0).to(DEVICE)
+
             with torch.no_grad():
                 logits = model(img_t)
                 probs = F.softmax(logits, dim=1)[0].numpy()
 
             top_idx = np.argmax(probs)
-            label = class_names[top_idx]
+            detected_label = class_names[top_idx].lower()
             conf = probs[top_idx]
 
-            print(f"Detected: {label} ({conf * 100:.1f}%)")
+            if detected_label in VALID_CLASSES:
+                final_label = detected_label
+            else:
+                final_label = "trash"
+
+            print(f"Result: {final_label.upper()} (Conf: {conf * 100:.1f}%)")
 
             if conf > 0.7:
-                print(f">>> Sending Command 'R' to Arduino for {label}...")
                 try:
-                    arduino.write(bytes('R', 'utf-8'))
-                    time.sleep(0.5)
+                    if final_label == "paper":
+                        print(">>> Sending 'P' (Paper - 3s Sequence)")
+                        arduino.write(bytes('P', 'utf-8'))
+                        time.sleep(10)
+
+                    elif final_label == "metal":
+                        print(">>> Sending 'M' (Metal - 6s Sequence)")
+                        arduino.write(bytes('M', 'utf-8'))
+                        time.sleep(16)
+
+                    elif final_label == "plastic":
+                        print(">>> Sending 'L' (Plastic - 9s Sequence)")
+                        arduino.write(bytes('L', 'utf-8'))
+                        time.sleep(22)
+
+                    elif final_label == "trash":
+                        print(">>> Sending 'T' (Trash - 12s Sequence)")
+                        arduino.write(bytes('T', 'utf-8'))
+                        time.sleep(28)
+
+                    print(">>> Sequence Completed. Ready for next scan.")
                 except Exception as e:
-                    print(f"Error sending to Arduino: {e}")
+                    print(f"Error communicating with Arduino: {e}")
+            else:
+                print(">>> Confidence too low. Please try again.")
+
         elif key == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     start_system()
