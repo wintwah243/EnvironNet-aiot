@@ -68,27 +68,27 @@ def start_system():
 
             print(f"Result: {final_label.upper()} (Conf: {conf * 100:.1f}%)")
 
-            if conf > 0.7:
+            if conf > 0.4:
                 try:
                     if final_label == "paper":
-                        print(">>> Sending 'P' (Paper - 3s Sequence)")
+                        print(">>> Sending 'P' (Paper - 0s Sequence)")
                         arduino.write(bytes('P', 'utf-8'))
-                        time.sleep(10)
+                        time.sleep(5)
 
                     elif final_label == "metal":
-                        print(">>> Sending 'M' (Metal - 6s Sequence)")
+                        print(">>> Sending 'M' (Metal - 0.6s Sequence)")
                         arduino.write(bytes('M', 'utf-8'))
-                        time.sleep(16)
+                        time.sleep(5)
 
                     elif final_label == "plastic":
-                        print(">>> Sending 'L' (Plastic - 9s Sequence)")
+                        print(">>> Sending 'L' (Plastic - 1.9s Sequence)")
                         arduino.write(bytes('L', 'utf-8'))
-                        time.sleep(22)
+                        time.sleep(5)
 
                     elif final_label == "trash":
-                        print(">>> Sending 'T' (Trash - 12s Sequence)")
+                        print(">>> Sending 'T' (Trash - 2s Sequence)")
                         arduino.write(bytes('T', 'utf-8'))
-                        time.sleep(28)
+                        time.sleep(5)
 
                     print(">>> Sequence Completed. Ready for next scan.")
                 except Exception as e:

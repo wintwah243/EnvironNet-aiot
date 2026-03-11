@@ -17,10 +17,11 @@ void setup() {
   pinMode(stepPin, OUTPUT);
 
   Serial.begin(9600);
+  Serial.println("System Ready. Send P, M, L, or T.");
 }
 
-void runSequence(int seconds) {
-  long totalSteps = (long)seconds * stepsPerSecond;
+void runSequence(float seconds) {
+  long totalSteps = (long)(seconds * stepsPerSecond);
 
   digitalWrite(dirPin, LOW);
   for (long x = 0; x < totalSteps; x++) {
@@ -51,17 +52,21 @@ void loop() {
   if (Serial.available() > 0) {
     char cmd = Serial.read();
 
-    if (cmd == 'P') {        // Paper (3s)
-      runSequence(3);
+    if (cmd == 'P') {
+      Serial.println("Paper Detected: 0s Move");
+      runSequence(0);
     }
-    else if (cmd == 'M') {   // Metal (6s)
-      runSequence(6);
+    else if (cmd == 'M') {
+      Serial.println("Metal Detected: 0.4s Move");
+      runSequence(0.4);
     }
-    else if (cmd == 'L') {   // Plastic (9s)
-      runSequence(9);
+    else if (cmd == 'L') {
+      Serial.println("Plastic Detected: 1.2s Move");
+      runSequence(1.2);
     }
-    else if (cmd == 'T') {   // Trash (12s)
-      runSequence(12);
+    else if (cmd == 'T') {
+      Serial.println("Trash Detected: 1.8s Move");
+      runSequence(1.8);
     }
 
     Serial.println("Ready for next scan.");
